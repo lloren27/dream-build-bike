@@ -1,36 +1,24 @@
 # Dream Build Bike
 
-Proyecto web para configurar una bici de carretera de ensueno: cuadro, grupo, manillar, tija, ruedas, frenos, pedales y pintura.
-
-## Objetivo del MVP
-
-El primer objetivo no es cubrir todo el mercado, sino validar la experiencia con un catalogo curado:
-
-- Seleccion de componentes por categoria.
-- Reglas basicas de compatibilidad.
-- Visualizacion inicial 2D del montaje.
-- Preparacion para anadir imagenes reales o modelos 3D por componente.
-- Backend listo para pasar de datos semilla a MongoDB.
+Configurador web para diseñar una bicicleta de carretera a medida. Permite explorar componentes, revisar su compatibilidad y preparar una configuración personalizada. El catálogo parte de datos semilla y está preparado para incorporar referencias de producto de Channel3.
 
 ## Arquitectura
 
+La aplicación se organiza como un monorepo npm con dos workspaces:
+
+- **Frontend (`frontend/`)**: aplicación de una sola página creada con Vue 3, Vite y TypeScript. Presenta el configurador y consume la API.
+- **Backend (`backend/`)**: API HTTP con Node.js, Express y TypeScript. Expone el catálogo y valida las combinaciones mediante reglas de compatibilidad. Actualmente puede arrancar con datos semilla; los modelos Mongoose preparan la persistencia futura.
+- **Integración Channel3**: el backend consulta y normaliza referencias candidatas. Se mantienen separadas de los componentes aprobados para el catálogo.
+- **Documentación (`docs/`)**: decisiones de arquitectura y alcance del flujo de datos de Channel3.
+
 ```text
-dream-build-bike/
-  backend/         API Node/Express y modelo de datos
-  frontend/        App Vue/Vite del configurador
-  docs/            Decisiones tecnicas y roadmap
+Navegador (Vue) ──HTTP──> API Express ──> catálogo y reglas de compatibilidad
+                                      └──> Channel3 (importación de referencias)
 ```
 
-## Stack propuesto
+## Requisitos y puesta en marcha
 
-- Frontend: Vue 3 + Vite + TypeScript.
-- Backend: Node.js + Express + TypeScript.
-- Base de datos inicial: datos semilla en memoria.
-- Base de datos futura: MongoDB con Mongoose, o PostgreSQL si las reglas de compatibilidad crecen mucho.
-- Datos de producto: Channel3 como proveedor de referencias candidatas.
-- Visual futuro: Three.js o model-viewer con modelos glTF/GLB.
-
-## Como arrancar
+Se recomienda Node.js 14 o posterior y npm. Desde la raíz del repositorio:
 
 ```bash
 npm install
@@ -38,94 +26,74 @@ cp .env.example .env
 npm run dev
 ```
 
-Frontend: http://localhost:5173  
-Backend: http://localhost:4000
+El frontend queda disponible en <http://localhost:5173> y el backend en <http://localhost:4000>.
 
-Nota: la configuracion inicial usa TypeScript y versiones compatibles con Node 14.x. Si actualizas a Node 20 LTS, conviene subir Vite, Vue tooling, ts-node y Mongoose a versiones actuales.
-
-## Calidad y tipos
+Comprobaciones de tipos y compilación:
 
 ```bash
 npm run typecheck
 npm run build
 ```
 
-El frontend tipa las respuestas de API, categorias y estado del configurador. El backend tipa los modelos de componente, los estandares tecnicos, las reglas de compatibilidad y las respuestas HTTP principales.
-
 ## Channel3
 
-El proyecto ya incluye una capa tipada para Channel3:
-
-- `backend/src/channel3/client.ts`: cliente HTTP tipado.
-- `backend/src/channel3/catalogScope.ts`: marcas y busquedas iniciales.
-- `backend/src/channel3/mapper.ts`: conversion de producto Channel3 a `ProductReference`.
-- `backend/src/models/ProductReference.ts`: modelo MongoDB para candidatos.
-- `backend/src/scripts/importChannel3.ts`: importador a snapshot local.
-
-Variables necesarias:
-
-```bash
-CHANNEL3_API_URL=https://api.trychannel3.com
-CHANNEL3_API_KEY=
-CHANNEL3_COUNTRY=ES
-CHANNEL3_CURRENCY=EUR
-CHANNEL3_LANGUAGE=es
-```
-
-Importar referencias:
+Para importar referencias, configura `CHANNEL3_API_KEY` en `.env` y ejecuta:
 
 ```bash
 cd backend
 npm run import:channel3
 ```
 
-El resultado se guarda en `backend/data/channel3-product-references.json`. Ese fichero no se sube a Git por defecto.
+La importación genera un snapshot local en `backend/data/channel3-product-references.json`, ignorado por Git. El alcance y las variables disponibles se describen en [`docs/channel3-data-plan.md`](docs/channel3-data-plan.md).
 
-Endpoint de alcance:
+## Archivos del proyecto
 
-- `GET /api/catalog/channel3/import-targets`
+El siguiente inventario incluye los archivos versionados del proyecto. Se omiten `node_modules/`, los directorios `dist/`, snapshots locales y otros archivos generados o propios del sistema.
 
-## API inicial
-
-- `GET /health`: estado de la API.
-- `GET /api/components`: listado completo de componentes.
-- `GET /api/components?category=frameset`: componentes por categoria.
-- `POST /api/builds/validate`: valida una configuracion.
-- `GET /api/catalog/channel3/import-targets`: marcas y consultas que se enviaran a Channel3.
-
-## Modelo de datos inicial
-
-Cada componente tiene:
-
-- `id`
-- `category`
-- `brand`
-- `model`
-- `year`
-- `price`
-- `weight`
-- `imageUrl`
-- `paintOptions`
-- `standards`
-- `compatibilityTags`
-- `sourceUrl`
-
-Las compatibilidades se calculan por etiquetas y estandares: freno de disco, velocidades, eje, pedalier, diametro de tija, tipo de cableado, etc.
-
-## Estrategia de datos
-
-1. Empezar con carga manual y fuentes oficiales.
-2. Guardar siempre la URL de origen y fecha de revision.
-3. Crear un panel admin o importador CSV.
-4. Mas adelante conectar feeds de afiliacion, distribuidores o acuerdos con marcas.
-
-## Roadmap
-
-1. Configurador funcional con catalogo semilla.
-2. Persistencia real en MongoDB.
-3. Importacion Channel3 con revision de candidatos.
-4. Administracion de componentes.
-5. Visual 2D mas fiel por capas.
-6. Visual 3D con modelos GLB.
-7. Guardado y comparticion de builds.
-8. Precios, disponibilidad y enlaces afiliados.
+```text
+.
+├── .env.example
+├── .gitignore
+├── README.md
+├── package.json
+├── package-lock.json
+├── backend/
+│   ├── data/
+│   │   └── .gitkeep
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── src/
+│       ├── channel3/
+│       │   ├── catalogScope.ts
+│       │   ├── client.ts
+│       │   ├── mapper.ts
+│       │   └── types.ts
+│       ├── models/
+│       │   ├── Component.ts
+│       │   └── ProductReference.ts
+│       ├── routes/
+│       │   ├── builds.ts
+│       │   ├── catalog.ts
+│       │   └── components.ts
+│       ├── scripts/
+│       │   └── importChannel3.ts
+│       ├── services/
+│       │   └── compatibility.ts
+│       ├── seed.ts
+│       ├── server.ts
+│       └── types.ts
+├── docs/
+│   ├── architecture.md
+│   └── channel3-data-plan.md
+└── frontend/
+    ├── index.html
+    ├── package.json
+    ├── tsconfig.json
+    ├── vite.config.ts
+    └── src/
+        ├── App.vue
+        ├── env.d.ts
+        ├── main.ts
+        ├── style.css
+        └── types.ts
+```
