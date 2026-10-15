@@ -18,7 +18,7 @@ Navegador (Vue) ──HTTP──> API Express ──> catálogo y reglas de comp
 
 ## Requisitos y puesta en marcha
 
-Se recomienda Node.js 14 o posterior y npm. Desde la raíz del repositorio:
+El proyecto requiere Node.js 24 LTS y npm. La versión base está indicada en `.nvmrc`; los workspaces de frontend y backend declaran el mismo requisito. Usa Node.js 24 para desarrollo, ejecución, pruebas, compilación y despliegue. Desde la raíz del repositorio:
 
 ```bash
 npm install

@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Configurador web para crear una bici de carretera personalizada.",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:backend": "npm --workspace backend run dev",
@@ -11,6 +14,7 @@
     "build:backend": "npm --workspace backend run build",
     "build:frontend": "npm --workspace frontend run build",
     "typecheck": "npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
+    "test": "npm --workspace frontend test",
     "start": "npm --workspace backend run start"
   },
   "workspaces": [

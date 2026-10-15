@@ -19,8 +19,12 @@ const categories: ComponentOption[] = [
 
 const components = ref<BikeComponent[]>([]);
 const selected = ref<Partial<Record<ComponentCategory, string>>>({});
-const validation = ref<ValidationResult>({ valid: true, issues: [] });
+const validation = ref<ValidationResult | null>(null);
 const loading = ref<boolean>(true);
+const catalogError = ref<string>("");
+const validationError = ref<string>("");
+const validationLoading = ref<boolean>(false);
+let validationRequestId = 0;
 
 const selectedComponents = computed<BikeComponent[]>(() =>
   Object.values(selected.value)
@@ -44,31 +48,68 @@ const totalWeight = computed<number>(() =>
   )
 );
 
-onMounted(async () => {
-  const response: Response = await fetch(`${apiUrl}/api/components`);
-  const payload: ComponentsResponse = await response.json();
-  components.value = payload.data;
+onMounted(loadCatalog);
 
-  categories.forEach((category: ComponentOption) => {
-    const firstOption: BikeComponent | undefined = components.value.find(
-      (component: BikeComponent) => component.category === category.id
-    );
-    if (firstOption) selected.value[category.id] = firstOption.id;
-  });
+async function loadCatalog(): Promise<void> {
+  loading.value = true;
+  catalogError.value = "";
+  try {
+    const response: Response = await fetch(`${apiUrl}/api/components`);
+    if (!response.ok) {
+      throw new Error(`No se pudo cargar el catálogo (HTTP ${response.status})`);
+    }
+    const payload: ComponentsResponse = await response.json();
+    components.value = payload.data;
 
-  loading.value = false;
-});
+    categories.forEach((category: ComponentOption) => {
+      const firstOption: BikeComponent | undefined = components.value.find(
+        (component: BikeComponent) => component.category === category.id
+      );
+      if (firstOption) selected.value[category.id] = firstOption.id;
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    catalogError.value = message.startsWith("No se pudo cargar el catálogo (HTTP ")
+      ? message
+      : "No se pudo cargar el catálogo. Comprueba la conexión e inténtalo de nuevo.";
+  } finally {
+    loading.value = false;
+  }
+}
 
 watch(selected, validateCurrentBuild, { deep: true });
 
 async function validateCurrentBuild(): Promise<void> {
-  const response: Response = await fetch(`${apiUrl}/api/builds/validate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ selectedIds: Object.values(selected.value) })
-  });
-  const payload: BuildValidationResponse = await response.json();
-  validation.value = payload.data.validation;
+  const requestId = ++validationRequestId;
+  validation.value = null;
+  validationError.value = "";
+  validationLoading.value = true;
+
+  try {
+    const response: Response = await fetch(`${apiUrl}/api/builds/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selectedIds: Object.values(selected.value) })
+    });
+    if (!response.ok) {
+      throw new Error(`No se pudo validar la configuración (HTTP ${response.status})`);
+    }
+    const payload: BuildValidationResponse = await response.json();
+    if (requestId === validationRequestId) {
+      validation.value = payload.data.validation;
+    }
+  } catch (error) {
+    if (requestId === validationRequestId) {
+      const message = error instanceof Error ? error.message : "";
+      validationError.value = message.startsWith("No se pudo validar la configuración (HTTP ")
+        ? message
+        : "No se pudo validar la configuración. Comprueba la conexión e inténtalo de nuevo.";
+    }
+  } finally {
+    if (requestId === validationRequestId) {
+      validationLoading.value = false;
+    }
+  }
 }
 
 function optionsFor(category: ComponentCategory): BikeComponent[] {
@@ -105,8 +146,13 @@ function optionsFor(category: ComponentCategory): BikeComponent[] {
             <strong>{{ (totalWeight / 1000).toFixed(2) }} kg</strong>
           </div>
         </div>
-        <p v-if="validation.valid" class="valid">Configuracion compatible</p>
-        <ul v-else class="issues">
+        <p v-if="validationLoading" class="validation-status">Validando configuración...</p>
+        <div v-else-if="validationError" class="error" role="alert">
+          <p>{{ validationError }}</p>
+          <button type="button" @click="validateCurrentBuild">Reintentar validación</button>
+        </div>
+        <p v-else-if="validation?.valid" class="valid">Configuracion compatible</p>
+        <ul v-else-if="validation" class="issues">
           <li v-for="issue in validation.issues" :key="issue.id">
             {{ issue.message }}
           </li>
@@ -116,18 +162,24 @@ function optionsFor(category: ComponentCategory): BikeComponent[] {
 
     <section class="configurator">
       <p v-if="loading">Cargando catalogo...</p>
-      <label v-for="category in categories" :key="category.id">
-        <span>{{ category.label }}</span>
-        <select v-model="selected[category.id]">
-          <option
-            v-for="component in optionsFor(category.id)"
-            :key="component.id"
-            :value="component.id"
-          >
-            {{ component.brand }} {{ component.model }}
-          </option>
-        </select>
-      </label>
+      <div v-else-if="catalogError" class="error" role="alert">
+        <p>{{ catalogError }}</p>
+        <button type="button" @click="loadCatalog">Reintentar carga del catálogo</button>
+      </div>
+      <template v-else>
+        <label v-for="category in categories" :key="category.id">
+          <span>{{ category.label }}</span>
+          <select v-model="selected[category.id]">
+            <option
+              v-for="component in optionsFor(category.id)"
+              :key="component.id"
+              :value="component.id"
+            >
+              {{ component.brand }} {{ component.model }}
+            </option>
+          </select>
+        </label>
+      </template>
     </section>
   </main>
 </template>
